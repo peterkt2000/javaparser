@@ -16,6 +16,12 @@
 
 package com.github.javaparser.symbolsolver.javaparsermodel.contexts;
 
+import static com.github.javaparser.symbolsolver.javaparser.Navigator.requireParentNode;
+
+import java.util.List;
+import java.util.function.BiFunction;
+
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.AssignExpr;
 import com.github.javaparser.ast.expr.Expression;
@@ -27,12 +33,10 @@ import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedValueDeclaration;
 import com.github.javaparser.resolution.types.ResolvedType;
 import com.github.javaparser.symbolsolver.javaparsermodel.declarations.JavaParserSymbolDeclaration;
+import com.github.javaparser.symbolsolver.javaparsermodel.declarators.VariableSymbolDeclarator;
 import com.github.javaparser.symbolsolver.model.resolution.SymbolReference;
 import com.github.javaparser.symbolsolver.model.resolution.TypeSolver;
-
-import java.util.List;
-
-import static com.github.javaparser.symbolsolver.javaparser.Navigator.requireParentNode;
+import com.github.javaparser.symbolsolver.resolution.SymbolDeclarator;
 
 public class ForStatementContext extends AbstractJavaParserContext<ForStmt> {
 
@@ -66,5 +70,37 @@ public class ForStatementContext extends AbstractJavaParserContext<ForStmt> {
     public SymbolReference<ResolvedMethodDeclaration> solveMethod(String name, List<ResolvedType> argumentsTypes,
                                                                   boolean staticOnly, TypeSolver typeSolver) {
         return getParent().solveMethod(name, argumentsTypes, false, typeSolver);
+    }
+
+    @Override
+    public SymbolReference<? extends ResolvedValueDeclaration> solveLambda(TypeSolver typeSolver,
+                                                                           BiFunction<Declaration, Node, Boolean> checkFunction) {
+
+        for (Expression expression : wrappedNode.getInitialization()) {
+            if (expression instanceof VariableDeclarationExpr) {
+                VariableDeclarationExpr variableDeclarationExpr = (VariableDeclarationExpr) expression;
+
+                SymbolDeclarator symbolDeclarator = new VariableSymbolDeclarator(variableDeclarationExpr,
+                        typeSolver);
+                SymbolReference<? extends ResolvedValueDeclaration> symbolReference = solveWithLambda(
+                        symbolDeclarator,
+                        expression,
+                        checkFunction);
+
+                if (symbolReference.isSolved()) {
+                    // return SymbolReference.solved(JavaParserSymbolDeclaration.localVar(v, typeSolver));
+                    return symbolReference;
+                }
+            } else if (!(expression instanceof AssignExpr || expression instanceof MethodCallExpr)) {
+                throw new UnsupportedOperationException(expression.getClass().getCanonicalName());
+            }
+        }
+
+        if (requireParentNode(wrappedNode) instanceof NodeWithStatements) {
+            return StatementContext.solveInBlockLambda(typeSolver, wrappedNode, checkFunction);
+        } else {
+            return getParent().solveLambda(typeSolver, checkFunction);
+        }
+
     }
 }

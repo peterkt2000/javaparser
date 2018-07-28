@@ -1,5 +1,9 @@
 package com.github.javaparser.symbolsolver.javaparsermodel.contexts;
 
+import java.util.List;
+import java.util.Optional;
+import java.util.function.BiFunction;
+
 import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.nodeTypes.NodeWithParameters;
@@ -16,9 +20,6 @@ import com.github.javaparser.symbolsolver.model.resolution.SymbolReference;
 import com.github.javaparser.symbolsolver.model.resolution.TypeSolver;
 import com.github.javaparser.symbolsolver.model.resolution.Value;
 import com.github.javaparser.symbolsolver.resolution.SymbolDeclarator;
-
-import java.util.List;
-import java.util.Optional;
 
 /**
  * @author Federico Tomassetti
@@ -41,6 +42,21 @@ public abstract class AbstractMethodLikeDeclarationContext
 
         // if nothing is found we should ask the parent context
         return getParent().solveSymbol(name, typeSolver);
+    }
+
+    public final SymbolReference<? extends ResolvedValueDeclaration> solveLambda(TypeSolver typeSolver,
+                                                                                 BiFunction<Declaration, Node, Boolean> checkFunction) {
+        for (Parameter parameter : wrappedNode.getParameters()) {
+            SymbolDeclarator sb = JavaParserFactory.getSymbolDeclarator(parameter, typeSolver);
+            SymbolReference<? extends ResolvedValueDeclaration> symbolReference = AbstractJavaParserContext
+                    .solveWithLambda(sb, wrappedNode, checkFunction);
+            if (symbolReference.isSolved()) {
+                return symbolReference;
+            }
+        }
+
+        // if nothing is found we should ask the parent context
+        return getParent().solveLambda(typeSolver, checkFunction);
     }
 
     @Override

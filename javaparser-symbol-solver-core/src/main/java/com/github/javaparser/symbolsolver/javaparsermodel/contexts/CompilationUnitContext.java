@@ -16,13 +16,16 @@
 
 package com.github.javaparser.symbolsolver.javaparsermodel.contexts;
 
+import java.util.List;
+import java.util.function.BiFunction;
+
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.AnnotationDeclaration;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.TypeDeclaration;
-import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.Name;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration;
@@ -37,8 +40,6 @@ import com.github.javaparser.symbolsolver.model.resolution.SymbolReference;
 import com.github.javaparser.symbolsolver.model.resolution.TypeSolver;
 import com.github.javaparser.symbolsolver.resolution.MethodResolutionLogic;
 import com.github.javaparser.symbolsolver.resolution.SymbolSolver;
-
-import java.util.List;
 
 /**
  * @author Federico Tomassetti
@@ -287,5 +288,40 @@ public class CompilationUnitContext extends AbstractJavaParserContext<Compilatio
         }
         String memberName = qName.substring(index + 1);
         return memberName;
+    }
+
+    @Override
+    public SymbolReference<? extends ResolvedValueDeclaration> solveLambda(TypeSolver typeSolver,
+                                                                           BiFunction<Declaration, Node, Boolean> checkFunction) {
+
+        // Look among statically imported values
+        if (wrappedNode.getImports() != null) {
+            for (ImportDeclaration importDecl : wrappedNode.getImports()) {
+                if (importDecl.isStatic()) {
+                    if (importDecl.isAsterisk()) {
+                        String qName = importDecl.getNameAsString();
+                        ResolvedTypeDeclaration importedType = typeSolver.solveType(qName);
+                        SymbolReference<? extends ResolvedValueDeclaration> ref = new SymbolSolver(typeSolver)
+                                .solveSymbolInTypeLambda(importedType, checkFunction);
+                        if (ref.isSolved()) {
+                            return ref;
+                        }
+                    } else {
+                        String whole = importDecl.getNameAsString();
+
+                        // split in field/method name and type name
+                        String memberName = getMember(whole);
+                        String typeName = getType(whole);
+
+                        ResolvedTypeDeclaration importedType = typeSolver.solveType(typeName);
+                        return new SymbolSolver(typeSolver).solveSymbolInTypeLambda(importedType,
+                                checkFunction);
+                    }
+                }
+            }
+        }
+
+        return SymbolReference.unsolved(ResolvedValueDeclaration.class);
+
     }
 }

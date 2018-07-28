@@ -16,19 +16,24 @@
 
 package com.github.javaparser.symbolsolver.javaparsermodel.contexts;
 
+import static com.github.javaparser.symbolsolver.javaparser.Navigator.requireParentNode;
+
+import java.util.List;
+import java.util.function.BiFunction;
+
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.VariableDeclarator;
+import com.github.javaparser.ast.expr.VariableDeclarationExpr;
 import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.stmt.ForeachStmt;
 import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedValueDeclaration;
 import com.github.javaparser.resolution.types.ResolvedType;
 import com.github.javaparser.symbolsolver.javaparsermodel.declarations.JavaParserSymbolDeclaration;
+import com.github.javaparser.symbolsolver.javaparsermodel.declarators.VariableSymbolDeclarator;
 import com.github.javaparser.symbolsolver.model.resolution.SymbolReference;
 import com.github.javaparser.symbolsolver.model.resolution.TypeSolver;
-
-import java.util.List;
-
-import static com.github.javaparser.symbolsolver.javaparser.Navigator.requireParentNode;
+import com.github.javaparser.symbolsolver.resolution.SymbolDeclarator;
 
 public class ForechStatementContext extends AbstractJavaParserContext<ForeachStmt> {
 
@@ -58,4 +63,35 @@ public class ForechStatementContext extends AbstractJavaParserContext<ForeachStm
                                                                   boolean staticOnly, TypeSolver typeSolver) {
         return getParent().solveMethod(name, argumentsTypes, false, typeSolver);
     }
+
+    @Override
+    public SymbolReference<? extends ResolvedValueDeclaration> solveLambda(TypeSolver typeSolver,
+                                                                           BiFunction<Declaration, Node, Boolean> checkFunction) {
+
+        if (wrappedNode.getVariable().getVariables().size() != 1) {
+            throw new IllegalStateException();
+        }
+
+        VariableDeclarationExpr variableDeclarationExpr = wrappedNode.getVariable();
+
+        SymbolDeclarator symbolDeclarator = new VariableSymbolDeclarator(variableDeclarationExpr,
+                typeSolver);
+        SymbolReference<? extends ResolvedValueDeclaration> symbolReference = solveWithLambda(
+                symbolDeclarator,
+                variableDeclarationExpr,
+                checkFunction);
+
+        if (symbolReference.isSolved()) {
+            // return SymbolReference.solved(JavaParserSymbolDeclaration.localVar(v, typeSolver));
+            return symbolReference;
+        } else {
+            if (requireParentNode(wrappedNode) instanceof BlockStmt) {
+                return StatementContext.solveInBlockLambda(typeSolver, wrappedNode, checkFunction);
+            } else {
+                return getParent().solveLambda(typeSolver, checkFunction);
+            }
+        }
+
+    }
+
 }

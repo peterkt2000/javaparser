@@ -16,6 +16,15 @@
 
 package com.github.javaparser.symbolsolver.javaparsermodel.contexts;
 
+import static com.github.javaparser.symbolsolver.javaparser.Navigator.requireParentNode;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.BiFunction;
+
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.Expression;
@@ -38,10 +47,6 @@ import com.github.javaparser.symbolsolver.model.resolution.Value;
 import com.github.javaparser.symbolsolver.model.typesystem.ReferenceTypeImpl;
 import com.github.javaparser.symbolsolver.reflectionmodel.MyObjectProvider;
 import com.github.javaparser.symbolsolver.resolution.SymbolDeclarator;
-
-import java.util.*;
-
-import static com.github.javaparser.symbolsolver.javaparser.Navigator.requireParentNode;
 
 /**
  * @author Federico Tomassetti
@@ -189,5 +194,21 @@ public class LambdaExprContext extends AbstractJavaParserContext<LambdaExpr> {
             i++;
         }
         throw new IllegalArgumentException();
+    }
+
+    @Override
+    public SymbolReference<? extends ResolvedValueDeclaration> solveLambda(TypeSolver typeSolver,
+                                                                           BiFunction<Declaration, Node, Boolean> checkFunction) {
+        for (Parameter parameter : wrappedNode.getParameters()) {
+            SymbolDeclarator sb = JavaParserFactory.getSymbolDeclarator(parameter, typeSolver);
+            SymbolReference<ResolvedValueDeclaration> symbolReference = solveWithLambda(sb, parameter,
+                    checkFunction);
+            if (symbolReference.isSolved()) {
+                return symbolReference;
+            }
+        }
+
+        // if nothing is found we should ask the parent context
+        return getParent().solveLambda(typeSolver, checkFunction);
     }
 }

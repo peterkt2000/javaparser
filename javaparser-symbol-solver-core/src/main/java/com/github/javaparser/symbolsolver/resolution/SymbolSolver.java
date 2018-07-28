@@ -16,6 +16,10 @@
 
 package com.github.javaparser.symbolsolver.resolution;
 
+import java.util.List;
+import java.util.Optional;
+import java.util.function.BiFunction;
+
 import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.resolution.MethodUsage;
@@ -27,6 +31,7 @@ import com.github.javaparser.resolution.declarations.ResolvedValueDeclaration;
 import com.github.javaparser.resolution.types.ResolvedType;
 import com.github.javaparser.symbolsolver.core.resolution.Context;
 import com.github.javaparser.symbolsolver.javaparsermodel.JavaParserFactory;
+import com.github.javaparser.symbolsolver.javaparsermodel.contexts.Declaration;
 import com.github.javaparser.symbolsolver.javaparsermodel.declarations.JavaParserClassDeclaration;
 import com.github.javaparser.symbolsolver.javaparsermodel.declarations.JavaParserEnumDeclaration;
 import com.github.javaparser.symbolsolver.javaparsermodel.declarations.JavaParserInterfaceDeclaration;
@@ -39,9 +44,6 @@ import com.github.javaparser.symbolsolver.model.resolution.Value;
 import com.github.javaparser.symbolsolver.model.typesystem.ReferenceTypeImpl;
 import com.github.javaparser.symbolsolver.reflectionmodel.ReflectionClassDeclaration;
 import com.github.javaparser.symbolsolver.reflectionmodel.ReflectionInterfaceDeclaration;
-
-import java.util.List;
-import java.util.Optional;
 
 /**
  * @author Federico Tomassetti
@@ -66,6 +68,14 @@ public class SymbolSolver {
 
     public Optional<Value> solveSymbolAsValue(String name, Context context) {
         return context.solveSymbolAsValue(name, typeSolver);
+    }
+
+    public SymbolReference<? extends ResolvedValueDeclaration> solveLambda(Node node,
+                                                                           BiFunction<Declaration, Node, Boolean> checkFunction) {
+
+        Context context = JavaParserFactory.getContext(node, typeSolver);
+
+        return context.solveLambda(typeSolver, checkFunction);
     }
 
     public Optional<Value> solveSymbolAsValue(String name, Node node) {
@@ -151,6 +161,44 @@ public class SymbolSolver {
         }
         if (typeDeclaration instanceof JavassistInterfaceDeclaration) {
             return ((JavassistInterfaceDeclaration) typeDeclaration).solveSymbol(name, typeSolver);
+        }
+        return SymbolReference.unsolved(ResolvedValueDeclaration.class);
+    }
+
+    /**
+     * Solve any possible visible symbols including: fields, internal types, type variables, the type itself or its
+     * containers.
+     * <p>
+     * It should contain its own private fields but not inherited private fields.
+     */
+    public SymbolReference<? extends ResolvedValueDeclaration> solveSymbolInTypeLambda(ResolvedTypeDeclaration typeDeclaration,
+                                                                                       BiFunction<Declaration, Node, Boolean> checkFunction) {
+        if (typeDeclaration instanceof JavaParserClassDeclaration) {
+            Context ctx = ((JavaParserClassDeclaration) typeDeclaration).getContext();
+            return ctx.solveLambda(typeSolver, checkFunction);
+        }
+        if (typeDeclaration instanceof JavaParserInterfaceDeclaration) {
+            Context ctx = ((JavaParserInterfaceDeclaration) typeDeclaration).getContext();
+            return ctx.solveLambda(typeSolver, checkFunction);
+        }
+        if (typeDeclaration instanceof JavaParserEnumDeclaration) {
+            Context ctx = ((JavaParserEnumDeclaration) typeDeclaration).getContext();
+            return ctx.solveLambda(typeSolver, checkFunction);
+        }
+        if (typeDeclaration instanceof ReflectionClassDeclaration) {
+            return ((ReflectionClassDeclaration) typeDeclaration).solveLambda(typeSolver, checkFunction);
+        }
+        if (typeDeclaration instanceof ReflectionInterfaceDeclaration) {
+            return ((ReflectionInterfaceDeclaration) typeDeclaration).solveLambda(typeSolver, checkFunction);
+        }
+        if (typeDeclaration instanceof JavassistClassDeclaration) {
+            return ((JavassistClassDeclaration) typeDeclaration).solveLambda(typeSolver, checkFunction);
+        }
+        if (typeDeclaration instanceof JavassistEnumDeclaration) {
+            return ((JavassistEnumDeclaration) typeDeclaration).solveLambda(typeSolver, checkFunction);
+        }
+        if (typeDeclaration instanceof JavassistInterfaceDeclaration) {
+            return ((JavassistInterfaceDeclaration) typeDeclaration).solveLambda(typeSolver, checkFunction);
         }
         return SymbolReference.unsolved(ResolvedValueDeclaration.class);
     }

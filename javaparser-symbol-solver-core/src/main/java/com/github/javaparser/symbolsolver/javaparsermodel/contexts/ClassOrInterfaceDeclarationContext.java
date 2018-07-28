@@ -16,9 +16,18 @@
 
 package com.github.javaparser.symbolsolver.javaparsermodel.contexts;
 
+import java.util.List;
+import java.util.Optional;
+import java.util.function.BiFunction;
+
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedConstructorDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedFieldDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedReferenceTypeDeclaration;
-import com.github.javaparser.resolution.declarations.*;
+import com.github.javaparser.resolution.declarations.ResolvedTypeDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedValueDeclaration;
 import com.github.javaparser.resolution.types.ResolvedType;
 import com.github.javaparser.resolution.types.ResolvedTypeVariable;
 import com.github.javaparser.symbolsolver.javaparsermodel.JavaParserFacade;
@@ -26,9 +35,6 @@ import com.github.javaparser.symbolsolver.javaparsermodel.declarations.JavaParse
 import com.github.javaparser.symbolsolver.model.resolution.SymbolReference;
 import com.github.javaparser.symbolsolver.model.resolution.TypeSolver;
 import com.github.javaparser.symbolsolver.model.resolution.Value;
-
-import java.util.List;
-import java.util.Optional;
 
 /**
  * @author Federico Tomassetti
@@ -105,5 +111,21 @@ public class ClassOrInterfaceDeclarationContext extends AbstractJavaParserContex
 
     private ResolvedReferenceTypeDeclaration getDeclaration() {
         return JavaParserFacade.get(typeSolver).getTypeDeclaration(this.wrappedNode);
+    }
+
+    @Override
+    public SymbolReference<? extends ResolvedValueDeclaration> solveLambda(TypeSolver typeSolver,
+                                                                           BiFunction<Declaration, Node, Boolean> checkFunction) {
+        if (typeSolver == null) throw new IllegalArgumentException();
+
+        for (ResolvedFieldDeclaration rfd : this.getDeclaration().getVisibleFields()) {
+            Declaration d = new Declaration(rfd.getName(), rfd.getType().describe());
+            if (checkFunction.apply(d, wrappedNode)) {
+                return SymbolReference.solved(rfd);
+            }
+        }
+
+        // then to parent
+        return getParent().solveLambda(typeSolver, checkFunction);
     }
 }

@@ -16,19 +16,23 @@
 
 package com.github.javaparser.symbolsolver.javaparsermodel.contexts;
 
+import java.util.List;
+import java.util.function.BiFunction;
+
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.EnumConstantDeclaration;
 import com.github.javaparser.ast.body.EnumDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedFieldDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedReferenceTypeDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedTypeDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedValueDeclaration;
 import com.github.javaparser.resolution.types.ResolvedType;
+import com.github.javaparser.symbolsolver.javaparsermodel.JavaParserFactory;
 import com.github.javaparser.symbolsolver.javaparsermodel.declarations.JavaParserEnumConstantDeclaration;
 import com.github.javaparser.symbolsolver.javaparsermodel.declarations.JavaParserEnumDeclaration;
 import com.github.javaparser.symbolsolver.model.resolution.SymbolReference;
 import com.github.javaparser.symbolsolver.model.resolution.TypeSolver;
-
-import java.util.List;
 
 /**
  * @author Federico Tomassetti
@@ -78,5 +82,32 @@ public class EnumDeclarationContext extends AbstractJavaParserContext<EnumDeclar
 
     private ResolvedReferenceTypeDeclaration getDeclaration() {
         return new JavaParserEnumDeclaration(this.wrappedNode, typeSolver);
+    }
+
+    @Override
+    public SymbolReference<? extends ResolvedValueDeclaration> solveLambda(TypeSolver typeSolver,
+                                                                           BiFunction<Declaration, Node, Boolean> checkFunction) {
+        if (typeSolver == null) throw new IllegalArgumentException();
+
+        // among constants
+        for (EnumConstantDeclaration constant : wrappedNode.getEntries()) {
+            JavaParserFactory.getSymbolDeclarator(constant, typeSolver);
+
+            Declaration d = new Declaration(constant.getName().getId(), wrappedNode.getNameAsString());
+
+            if (checkFunction.apply(d, constant)) {
+                return SymbolReference.solved(new JavaParserEnumConstantDeclaration(constant, typeSolver));
+            }
+        }
+
+        for (ResolvedFieldDeclaration rfd : this.getDeclaration().getAllFields()) {
+            Declaration d = new Declaration(rfd.getName(), rfd.getType().describe());
+            if (checkFunction.apply(d, null)) {
+                return SymbolReference.solved(rfd);
+            }
+        }
+
+        // then to parent
+        return getParent().solveLambda(typeSolver, checkFunction);
     }
 }

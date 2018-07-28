@@ -16,30 +16,43 @@
 
 package com.github.javaparser.symbolsolver.javassistmodel;
 
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
 import com.github.javaparser.ast.AccessSpecifier;
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.resolution.MethodUsage;
 import com.github.javaparser.resolution.UnsolvedSymbolException;
-import com.github.javaparser.resolution.declarations.*;
+import com.github.javaparser.resolution.declarations.ResolvedFieldDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedInterfaceDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedReferenceTypeDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedTypeParameterDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedValueDeclaration;
 import com.github.javaparser.resolution.types.ResolvedReferenceType;
 import com.github.javaparser.resolution.types.ResolvedType;
 import com.github.javaparser.symbolsolver.core.resolution.Context;
+import com.github.javaparser.symbolsolver.javaparsermodel.contexts.Declaration;
 import com.github.javaparser.symbolsolver.logic.AbstractTypeDeclaration;
 import com.github.javaparser.symbolsolver.model.resolution.SymbolReference;
 import com.github.javaparser.symbolsolver.model.resolution.TypeSolver;
 import com.github.javaparser.symbolsolver.model.typesystem.ReferenceTypeImpl;
 import com.github.javaparser.symbolsolver.resolution.MethodResolutionLogic;
 import com.github.javaparser.symbolsolver.resolution.SymbolSolver;
+
 import javassist.CtClass;
 import javassist.CtField;
 import javassist.CtMethod;
 import javassist.NotFoundException;
 import javassist.bytecode.AccessFlag;
 import javassist.bytecode.SyntheticAttribute;
-
-import java.lang.reflect.Modifier;
-import java.util.*;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 /**
  * @author Federico Tomassetti
@@ -224,6 +237,44 @@ public class JavassistInterfaceDeclaration extends AbstractTypeDeclaration imple
         }
 
         return SymbolReference.unsolved(ResolvedValueDeclaration.class);
+    }
+
+    public SymbolReference<? extends ResolvedValueDeclaration> solveLambda(TypeSolver typeSolver,
+                                                                           BiFunction<Declaration, Node, Boolean> checkFunction) {
+        for (CtField field : ctClass.getDeclaredFields()) {
+            String type = null;
+            try {
+                type = field.getType().getName();
+            } catch (NotFoundException e) {
+                // Do nothing
+            }
+            Declaration d = new Declaration(field.getName(), type);
+            if (checkFunction.apply(d, null)) {
+                return SymbolReference.solved(new JavassistFieldDeclaration(field, typeSolver));
+            }
+        }
+
+        String[] interfaceFQNs = getInterfaceFQNs();
+        for (String interfaceFQN : interfaceFQNs) {
+            SymbolReference<? extends ResolvedValueDeclaration> interfaceRef = solveSymbolForFQNLambda(typeSolver,
+                    interfaceFQN, checkFunction);
+            if (interfaceRef.isSolved()) {
+                return interfaceRef;
+            }
+        }
+
+        return SymbolReference.unsolved(ResolvedValueDeclaration.class);
+    }
+
+    private SymbolReference<? extends ResolvedValueDeclaration> solveSymbolForFQNLambda(TypeSolver typeSolver,
+                                                                                        String fqn,
+                                                                                        BiFunction<Declaration, Node, Boolean> checkFunction) {
+        if (fqn == null) {
+            return SymbolReference.unsolved(ResolvedValueDeclaration.class);
+        }
+
+        ResolvedReferenceTypeDeclaration fqnTypeDeclaration = typeSolver.solveType(fqn);
+        return new SymbolSolver(typeSolver).solveSymbolInTypeLambda(fqnTypeDeclaration, checkFunction);
     }
 
     private SymbolReference<? extends ResolvedValueDeclaration> solveSymbolForFQN(String symbolName, TypeSolver typeSolver, String fqn) {

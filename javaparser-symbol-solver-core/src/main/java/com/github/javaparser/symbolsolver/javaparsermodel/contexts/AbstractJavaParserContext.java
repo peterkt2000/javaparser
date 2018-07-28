@@ -16,6 +16,15 @@
 
 package com.github.javaparser.symbolsolver.javaparsermodel.contexts;
 
+import static com.github.javaparser.symbolsolver.javaparser.Navigator.requireParentNode;
+import static java.util.Collections.singletonList;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Optional;
+import java.util.function.BiFunction;
+
 import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.FieldAccessExpr;
@@ -37,14 +46,6 @@ import com.github.javaparser.symbolsolver.model.resolution.Value;
 import com.github.javaparser.symbolsolver.reflectionmodel.ReflectionClassDeclaration;
 import com.github.javaparser.symbolsolver.resolution.SymbolDeclarator;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Optional;
-
-import static com.github.javaparser.symbolsolver.javaparser.Navigator.requireParentNode;
-import static java.util.Collections.singletonList;
-
 /**
  * @author Federico Tomassetti
  */
@@ -60,6 +61,20 @@ public abstract class AbstractJavaParserContext<N extends Node> implements Conte
     public static SymbolReference<ResolvedValueDeclaration> solveWith(SymbolDeclarator symbolDeclarator, String name) {
         for (ResolvedValueDeclaration decl : symbolDeclarator.getSymbolDeclarations()) {
             if (decl.getName().equals(name)) {
+                return SymbolReference.solved(decl);
+            }
+        }
+        return SymbolReference.unsolved(ResolvedValueDeclaration.class);
+    }
+
+    public static SymbolReference<ResolvedValueDeclaration> solveWithLambda(SymbolDeclarator symbolDeclarator,
+                                                                            Node node,
+                                                                            BiFunction<Declaration, Node, Boolean> checkFunction) {
+        for (ResolvedValueDeclaration decl : symbolDeclarator.getSymbolDeclarations()) {
+
+            Declaration d = new Declaration(decl.getName(), decl.getType().describe());
+
+            if (checkFunction.apply(d, node)) {
                 return SymbolReference.solved(decl);
             }
         }

@@ -16,14 +16,30 @@
 
 package com.github.javaparser.symbolsolver.reflectionmodel;
 
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
+
 import com.github.javaparser.ast.AccessSpecifier;
 import com.github.javaparser.ast.Node;
 import com.github.javaparser.resolution.MethodUsage;
-import com.github.javaparser.resolution.declarations.*;
+import com.github.javaparser.resolution.declarations.ResolvedFieldDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedInterfaceDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedReferenceTypeDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedTypeParameterDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedValueDeclaration;
 import com.github.javaparser.resolution.types.ResolvedReferenceType;
 import com.github.javaparser.resolution.types.ResolvedType;
 import com.github.javaparser.symbolsolver.core.resolution.Context;
 import com.github.javaparser.symbolsolver.javaparsermodel.LambdaArgumentTypePlaceholder;
+import com.github.javaparser.symbolsolver.javaparsermodel.contexts.Declaration;
 import com.github.javaparser.symbolsolver.logic.AbstractTypeDeclaration;
 import com.github.javaparser.symbolsolver.logic.ConfilictingGenericTypesException;
 import com.github.javaparser.symbolsolver.logic.InferenceContext;
@@ -31,10 +47,6 @@ import com.github.javaparser.symbolsolver.model.resolution.SymbolReference;
 import com.github.javaparser.symbolsolver.model.resolution.TypeSolver;
 import com.github.javaparser.symbolsolver.model.typesystem.NullType;
 import com.github.javaparser.symbolsolver.model.typesystem.ReferenceTypeImpl;
-
-import java.lang.reflect.Field;
-import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * @author Federico Tomassetti
@@ -233,6 +245,17 @@ public class ReflectionInterfaceDeclaration extends AbstractTypeDeclaration impl
     public SymbolReference<? extends ResolvedValueDeclaration> solveSymbol(String name, TypeSolver typeSolver) {
         for (Field field : clazz.getFields()) {
             if (field.getName().equals(name)) {
+                return SymbolReference.solved(new ReflectionFieldDeclaration(field, typeSolver));
+            }
+        }
+        return SymbolReference.unsolved(ResolvedValueDeclaration.class);
+    }
+
+    public SymbolReference<? extends ResolvedValueDeclaration> solveLambda(TypeSolver typeSolver,
+                                                                           BiFunction<Declaration, Node, Boolean> checkFunction) {
+        for (Field field : clazz.getFields()) {
+            Declaration d = new Declaration(field.getName(), field.getType().getName());
+            if (checkFunction.apply(d, null)) {
                 return SymbolReference.solved(new ReflectionFieldDeclaration(field, typeSolver));
             }
         }

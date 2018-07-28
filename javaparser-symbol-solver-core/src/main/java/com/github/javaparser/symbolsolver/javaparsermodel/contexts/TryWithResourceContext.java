@@ -16,6 +16,13 @@
 
 package com.github.javaparser.symbolsolver.javaparsermodel.contexts;
 
+import static com.github.javaparser.symbolsolver.javaparser.Navigator.requireParentNode;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.function.BiFunction;
+
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.VariableDeclarationExpr;
@@ -25,15 +32,11 @@ import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedValueDeclaration;
 import com.github.javaparser.resolution.types.ResolvedType;
 import com.github.javaparser.symbolsolver.javaparsermodel.declarations.JavaParserSymbolDeclaration;
+import com.github.javaparser.symbolsolver.javaparsermodel.declarators.VariableSymbolDeclarator;
 import com.github.javaparser.symbolsolver.model.resolution.SymbolReference;
 import com.github.javaparser.symbolsolver.model.resolution.TypeSolver;
 import com.github.javaparser.symbolsolver.model.resolution.Value;
-
-import java.util.List;
-import java.util.Optional;
-
-import static com.github.javaparser.symbolsolver.javaparser.Navigator.getParentNode;
-import static com.github.javaparser.symbolsolver.javaparser.Navigator.requireParentNode;
+import com.github.javaparser.symbolsolver.resolution.SymbolDeclarator;
 
 public class TryWithResourceContext extends AbstractJavaParserContext<TryStmt> {
 
@@ -85,4 +88,32 @@ public class TryWithResourceContext extends AbstractJavaParserContext<TryStmt> {
                                                                   boolean staticOnly, TypeSolver typeSolver) {
         return getParent().solveMethod(name, argumentsTypes, false, typeSolver);
     }
+
+    @Override
+    public SymbolReference<? extends ResolvedValueDeclaration> solveLambda(TypeSolver typeSolver,
+                                                                           BiFunction<Declaration, Node, Boolean> checkFunction) {
+
+        for (Expression expr : wrappedNode.getResources()) {
+            if (expr instanceof VariableDeclarationExpr) {
+                SymbolDeclarator symbolDeclarator = new VariableSymbolDeclarator((VariableDeclarationExpr) expr,
+                        typeSolver);
+                SymbolReference<? extends ResolvedValueDeclaration> symbolReference = solveWithLambda(
+                        symbolDeclarator,
+                        expr,
+                        checkFunction);
+                if (symbolReference.isSolved()) {
+                    // return SymbolReference.solved(JavaParserSymbolDeclaration.localVar(v, typeSolver));
+                    return symbolReference;
+                }
+            }
+        }
+
+        if (requireParentNode(wrappedNode) instanceof BlockStmt) {
+            return StatementContext.solveInBlockLambda(typeSolver, wrappedNode, checkFunction);
+        } else {
+            return getParent().solveLambda(typeSolver, checkFunction);
+        }
+
+    }
+
 }

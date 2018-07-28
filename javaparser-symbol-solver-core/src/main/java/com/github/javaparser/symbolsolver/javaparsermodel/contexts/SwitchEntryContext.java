@@ -16,6 +16,12 @@
 
 package com.github.javaparser.symbolsolver.javaparsermodel.contexts;
 
+import static com.github.javaparser.symbolsolver.javaparser.Navigator.requireParentNode;
+
+import java.util.List;
+import java.util.function.BiFunction;
+
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.stmt.Statement;
 import com.github.javaparser.ast.stmt.SwitchEntryStmt;
 import com.github.javaparser.ast.stmt.SwitchStmt;
@@ -28,10 +34,6 @@ import com.github.javaparser.symbolsolver.model.resolution.SymbolReference;
 import com.github.javaparser.symbolsolver.model.resolution.TypeSolver;
 import com.github.javaparser.symbolsolver.model.typesystem.ReferenceTypeImpl;
 import com.github.javaparser.symbolsolver.resolution.SymbolDeclarator;
-
-import java.util.List;
-
-import static com.github.javaparser.symbolsolver.javaparser.Navigator.requireParentNode;
 
 /**
  * @author Federico Tomassetti
@@ -76,5 +78,43 @@ public class SwitchEntryContext extends AbstractJavaParserContext<SwitchEntryStm
     @Override
     public SymbolReference<ResolvedMethodDeclaration> solveMethod(String name, List<ResolvedType> argumentsTypes, boolean staticOnly, TypeSolver typeSolver) {
         return getParent().solveMethod(name, argumentsTypes, false, typeSolver);
+    }
+
+    @Override
+    public SymbolReference<? extends ResolvedValueDeclaration> solveLambda(TypeSolver typeSolver,
+                                                                           BiFunction<Declaration, Node, Boolean> checkFunction) {
+
+        SwitchStmt switchStmt = (SwitchStmt) requireParentNode(wrappedNode);
+        ResolvedType type = JavaParserFacade.get(typeSolver).getType(switchStmt.getSelector());
+        if (type.isReferenceType() && type.asReferenceType().getTypeDeclaration().isEnum()) {
+            if (type instanceof ReferenceTypeImpl) {
+                SymbolDeclarator symbolDeclarator = JavaParserFactory.getSymbolDeclarator(switchStmt.getSelector(),
+                        typeSolver);
+                SymbolReference<? extends ResolvedValueDeclaration> symbolReference = solveWithLambda(
+                        symbolDeclarator, switchStmt.getSelector(), checkFunction);
+                if (symbolReference.isSolved()) {
+                    return symbolReference;
+                }
+            } else {
+                throw new UnsupportedOperationException();
+            }
+        }
+
+        // look for declaration in other switch statements
+        for (SwitchEntryStmt seStmt : switchStmt.getEntries()) {
+            if (!seStmt.equals(wrappedNode)) {
+                for (Statement stmt : seStmt.getStatements()) {
+                    SymbolDeclarator symbolDeclarator = JavaParserFactory.getSymbolDeclarator(stmt, typeSolver);
+                    SymbolReference<? extends ResolvedValueDeclaration> symbolReference = solveWithLambda(
+                            symbolDeclarator, stmt, checkFunction);
+                    if (symbolReference.isSolved()) {
+                        return symbolReference;
+                    }
+                }
+            }
+        }
+
+        return getParent().solveLambda(typeSolver, checkFunction);
+
     }
 }

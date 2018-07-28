@@ -16,15 +16,22 @@
 
 package com.github.javaparser.symbolsolver.core.resolution;
 
+import java.util.List;
+import java.util.Optional;
+import java.util.function.BiFunction;
+
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.resolution.MethodUsage;
-import com.github.javaparser.resolution.declarations.*;
+import com.github.javaparser.resolution.declarations.ResolvedConstructorDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedReferenceTypeDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedTypeDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedValueDeclaration;
 import com.github.javaparser.resolution.types.ResolvedType;
+import com.github.javaparser.symbolsolver.javaparsermodel.contexts.Declaration;
 import com.github.javaparser.symbolsolver.model.resolution.SymbolReference;
 import com.github.javaparser.symbolsolver.model.resolution.TypeSolver;
 import com.github.javaparser.symbolsolver.model.resolution.Value;
-
-import java.util.List;
-import java.util.Optional;
 
 /**
  * Context is very similar to scope.
@@ -64,6 +71,10 @@ public interface Context {
             return Optional.empty();
         }
     }
+    
+    SymbolReference<? extends ResolvedValueDeclaration> solveLambda(TypeSolver typeSolver,
+                                                                    BiFunction<Declaration, Node, Boolean> checkFunction);
+    
 
     /* Constructor resolution */
 

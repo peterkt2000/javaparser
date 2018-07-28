@@ -16,14 +16,22 @@
 
 package com.github.javaparser.symbolsolver.javaparsermodel.contexts;
 
+import static com.github.javaparser.symbolsolver.javaparser.Navigator.requireParentNode;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.BiFunction;
+
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.FieldAccessExpr;
 import com.github.javaparser.ast.expr.ThisExpr;
+import com.github.javaparser.resolution.declarations.ResolvedFieldDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedReferenceTypeDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedTypeDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedValueDeclaration;
-import com.github.javaparser.resolution.declarations.ResolvedFieldDeclaration;
 import com.github.javaparser.resolution.types.ResolvedPrimitiveType;
 import com.github.javaparser.resolution.types.ResolvedType;
 import com.github.javaparser.symbolsolver.javaparsermodel.JavaParserFacade;
@@ -32,13 +40,6 @@ import com.github.javaparser.symbolsolver.model.resolution.SymbolReference;
 import com.github.javaparser.symbolsolver.model.resolution.TypeSolver;
 import com.github.javaparser.symbolsolver.model.resolution.Value;
 import com.github.javaparser.symbolsolver.resolution.SymbolSolver;
-
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
-
-import static com.github.javaparser.symbolsolver.javaparser.Navigator.getParentNode;
-import static com.github.javaparser.symbolsolver.javaparser.Navigator.requireParentNode;
 
 /**
  * @author Federico Tomassetti
@@ -100,5 +101,18 @@ public class FieldAccessContext extends AbstractJavaParserContext<FieldAccessExp
             }
         }
         return SymbolReference.unsolved(ResolvedFieldDeclaration.class);
+    }
+
+    @Override
+    public SymbolReference<? extends ResolvedValueDeclaration> solveLambda(TypeSolver typeSolver,
+                                                                           BiFunction<Declaration, Node, Boolean> checkFunction) {
+        if (wrappedNode.getScope() instanceof ThisExpr) {
+            ResolvedType typeOfThis = JavaParserFacade.get(typeSolver).getTypeOfThisIn(wrappedNode);
+            return new SymbolSolver(typeSolver)
+                    .solveSymbolInTypeLambda(typeOfThis.asReferenceType().getTypeDeclaration(), checkFunction);
+        }
+
+        return JavaParserFactory.getContext(requireParentNode(wrappedNode), typeSolver).solveLambda(typeSolver,
+                checkFunction);
     }
 }
